@@ -11,7 +11,7 @@ class Gesture(str, Enum):
 
 LDR_DEPTH = 10
 BOARD_SIZE = 8
-MIN_FRAMES_FOR_CHANGE = 5  # Almeno 3 frame per considerare un cambiamento significativo
+MIN_FRAMES_FOR_CHANGE = 7  # Almeno 3 frame per considerare un cambiamento significativo
 
 class GestureAnalyzer:
     def __init__(self):
