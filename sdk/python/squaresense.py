@@ -17,6 +17,14 @@ class SquareSense:
 		:return: None
 		"""
 
+		control_char = data[0]
+		if control_char == '#':
+			print("Comment: Ignoring line")
+		elif control_char == '>':
+			print("Received end command")
+		else:
+			print("Unknown command")
+
 		print(f"Input data: {data}")
 
 
