@@ -1,0 +1,33 @@
+import FreeCAD, Part
+from FreeCAD import Base
+
+doc = FreeCAD.newDocument("CNC_MDF")
+
+# Tavola MDF 500x500x6 mm
+length = 500
+width = 500
+thickness = 6
+mdf_block = Part.makeBox(length, width, thickness)
+
+# Foro passante da 1mm al centro
+hole_radius = 0.5
+center_x = length / 2
+center_y = width / 2
+hole = Part.makeCylinder(hole_radius, thickness, Base.Vector(center_x, center_y, 0), Base.Vector(0, 0, 1))
+
+# Scanalatura da 100x1x1 mm centrata
+slot = Part.makeBox(100, 1, 1, Base.Vector(center_x - 50, center_y - 0.5, 0))
+
+# Alloggio Arduino Nano (45x18x3 mm) sul lato destro
+nano = Part.makeBox(45, 18, 3, Base.Vector(length - 55, 10, 0))
+
+# Sottrai tutto
+final_shape = mdf_block.cut(hole)
+final_shape = final_shape.cut(slot)
+final_shape = final_shape.cut(nano)
+
+# Aggiungi al documento
+obj = doc.addObject("Part::Feature", "MDF_Model")
+obj.Shape = final_shape
+
+doc.recompute()
