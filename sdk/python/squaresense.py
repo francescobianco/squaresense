@@ -22,8 +22,8 @@ class SquareSense:
 		if control_char == '#':
 			print("Comment: Ignoring line")
 		elif control_char == '>':
-			print("Received dataframe")
-			print(f"Input data: {data}")
+			#print("Received dataframe")
+			#print(f"Input data: {data}")
 			cleaned_string = data[2:]
 			hex_values = cleaned_string.strip().split()
 			int_values = [int(h, 16) for h in hex_values]
@@ -33,7 +33,7 @@ class SquareSense:
 			self.analyzer.update_board(matrix_8x8)
 
 			self.analyzer.analyze()
-			print(self.analyzer.get_status())
+
 
 
 
