@@ -10,6 +10,11 @@ Da questi eventi poi genera sulla base delle regole degli scacchi un evento di t
 
 - MOVE e2e4
 
+
+Leggere il seguente file per capire come funziona il protocollo e come implementarlo in un progetto.
+
+- [GESTURE.md](GESTURE.md)
+
 ## Related Links
 
 - Graphic Design: https://github.com/fulminati/gravitboard

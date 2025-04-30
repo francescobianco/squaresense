@@ -1,4 +1,5 @@
 
+from .gesture import GestureAnalyzer
 
 class SquareSense:
 	"""
@@ -7,7 +8,7 @@ class SquareSense:
 	"""
 
 	def __init__(self):
-		pass
+		self.analyzer = GestureAnalyzer()
 
 	def input(self, data):
 		"""
@@ -21,11 +22,25 @@ class SquareSense:
 		if control_char == '#':
 			print("Comment: Ignoring line")
 		elif control_char == '>':
-			print("Received end command")
+			print("Received dataframe")
+			print(f"Input data: {data}")
+			cleaned_string = data[2:]
+			hex_values = cleaned_string.strip().split()
+			int_values = [int(h, 16) for h in hex_values]
+			matrix_8x8 = [int_values[i:i+8] for i in range(0, 64, 8)]
+			#for row in matrix_8x8:
+			#	print(row)
+			self.analyzer.update_board(matrix_8x8)
+
+			self.analyzer.analyze()
+			print(self.analyzer.get_status())
+
+
+
 		else:
 			print("Unknown command")
 
-		print(f"Input data: {data}")
+
 
 
 
