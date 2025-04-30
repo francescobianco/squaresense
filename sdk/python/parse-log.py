@@ -1,4 +1,5 @@
 
+import sys
 
 from .squaresense import SquareSense
 
@@ -7,7 +8,7 @@ if __name__ == "__main__":
 	squaresense = SquareSense()
 
 	print("Running as a script")
-	file = "fixtures/dataset/synthetic/e2e4.log"
+	file = sys.argv[1]
 	with open(file, "r") as f:
 		lines = f.readlines()
 		for line in lines:

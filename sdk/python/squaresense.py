@@ -18,6 +18,10 @@ class SquareSense:
 		:return: None
 		"""
 
+		if not data:
+			print("Empty data received")
+			return
+
 		control_char = data[0]
 		if control_char == '#':
 			print("Comment: Ignoring line")
