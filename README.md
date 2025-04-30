@@ -1,6 +1,6 @@
-# squaresense
+# SquareSense (v1)
 
-Il protocollo legge dei log generati dagli LDR e li invia ad'un interprete che è in grado di decifrazione l'evento avvenuto sopra la scacchiera
+Il protocollo legge dei log generati dagli LDR (es. [e2e4](https://github.com/francescobianco/squaresense/blob/main/fixtures/dataset/synthetic/e2e4.log)) e li invia ad'un interprete che è in grado di decifrazione l'evento avvenuto sopra la scacchiera
 ad esempio
 
 - PICK e2 # Sollevato il pezzo sulla casa e2
