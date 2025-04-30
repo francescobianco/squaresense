@@ -11,6 +11,7 @@ class Gesture(str, Enum):
 
 LDR_DEPTH = 10
 BOARD_SIZE = 8
+MIN_FRAMES_FOR_CHANGE = 5  # Almeno 3 frame per considerare un cambiamento significativo
 
 class GestureAnalyzer:
     def __init__(self):
@@ -19,6 +20,8 @@ class GestureAnalyzer:
         self.sample_count = 0  # Contatore per il numero di frame ricevuti
         # Matrice per mantenere lo stato corrente di ogni casella
         self.current_status = [[Gesture.NONE for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+        # Matrice per contare il numero di frame con un cambiamento significativo
+        self.change_history = [[0 for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
 
     def update_board(self, new_frame):
         """
@@ -98,11 +101,18 @@ class GestureAnalyzer:
                     self.current_status[i][j] = current_gesture
                     continue
 
-                # Emetti un evento solo se c'è un cambiamento di stato
+                # Verifica se c'è un cambiamento significativo
                 if current_gesture != self.current_status[i][j] and current_gesture != Gesture.NONE:
-                    print(f"Evento rilevato: {current_gesture.value} in casa ({i}, {j})")
-                    self.current_status[i][j] = current_gesture
-                    events_detected = True
+                    # Se il cambiamento è significativo, aumenta il contatore
+                    self.change_history[i][j] += 1
+                    # Solo se il cambiamento è accumulato per un numero sufficiente di frame, emetti un evento
+                    if self.change_history[i][j] >= MIN_FRAMES_FOR_CHANGE:
+                        print(f"Evento rilevato: {current_gesture.value} in casa ({i}, {j})  {angle}/{quote}", values)
+                        self.current_status[i][j] = current_gesture
+                        events_detected = True
+                else:
+                    # Reset del contatore se il cambiamento non è significativo
+                    self.change_history[i][j] = 0
 
         return events_detected  # Indica se sono stati rilevati eventi
 
@@ -139,7 +149,7 @@ if __name__ == "__main__":
         frame = [[0 for _ in range(8)] for _ in range(8)]
         frame[3][3] = 255 - t * 40  # Simula sollevamento graduale
         analyzer.update_board(frame)
-        analyzer.analyze()  # Ora emetterà eventi solo se c'è un cambiamento di stato
+        analyzer.analyze()  # Ora emetterà eventi solo se c'è un cambiamento di stato significativo
 
     # Simula un nuovo oggetto in E5 (4,4)
     print("\n=== TEST NUOVO OGGETTO IN E5 ===")
