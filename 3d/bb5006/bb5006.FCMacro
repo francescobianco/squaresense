@@ -1,12 +1,19 @@
-import FreeCAD, Part
+import FreeCAD as App
+import Part
+import Draft
 from FreeCAD import Base
 
-doc = FreeCAD.newDocument("CNC_MDF")
+# Crea un nuovo documento se non è già aperto
+doc = App.ActiveDocument
+if doc is None:
+    doc = App.newDocument("CNC_MDF")
 
-# Tavola MDF 500x500x6 mm
+# Parametri del tavolo MDF
 length = 500
 width = 500
 thickness = 6
+
+# Creazione blocco MDF
 mdf_block = Part.makeBox(length, width, thickness)
 
 # Foro passante da 1mm al centro
@@ -21,13 +28,124 @@ slot = Part.makeBox(100, 1, 1, Base.Vector(center_x - 50, center_y - 0.5, 0))
 # Alloggio Arduino Nano (45x18x3 mm) sul lato destro
 nano = Part.makeBox(45, 18, 3, Base.Vector(length - 55, 10, 0))
 
-# Sottrai tutto
+# Sottrazioni iniziali
 final_shape = mdf_block.cut(hole)
 final_shape = final_shape.cut(slot)
 final_shape = final_shape.cut(nano)
+
+# Creeremo una lista di fori per i centri delle caselle
+chess_holes = []
 
 # Aggiungi al documento
 obj = doc.addObject("Part::Feature", "MDF_Model")
 obj.Shape = final_shape
 
+# === Parametri scacchiera ===
+square_size = 55  # mm (5.5 cm)
+rows = 8
+cols = 8
+z_level = thickness + 0.1  # appena sopra il piano MDF
+circle_radius = 3  # raggio 3mm = diametro 6mm
+hole_depth = 3  # profondità del foro centrale nelle caselle
+
+# Calcola il centro della tavola per posizionare la scacchiera
+origin_x = (length - (cols * square_size)) / 2
+origin_y = (width - (rows * square_size)) / 2
+
+# Gruppo per la scacchiera
+chessboard_group = doc.addObject("App::DocumentObjectGroup", "Scacchiera")
+
+# Crea i quadrati della scacchiera
+for row in range(rows):
+    for col in range(cols):
+        # Calcola la posizione del quadrato
+        x = origin_x + col * square_size
+        y = origin_y + row * square_size
+
+        # Crea il quadrato
+        points = [
+            Base.Vector(x, y, z_level),
+            Base.Vector(x + square_size, y, z_level),
+            Base.Vector(x + square_size, y + square_size, z_level),
+            Base.Vector(x, y + square_size, z_level),
+            Base.Vector(x, y, z_level)
+        ]
+        square_wire = Part.makePolygon(points)
+        square_obj = doc.addObject("Part::Feature", f"Casella_{row}_{col}")
+        square_obj.Shape = square_wire
+        chessboard_group.addObject(square_obj)
+
+        # Calcola il centro della casella
+        cx = x + square_size / 2
+        cy = y + square_size / 2
+
+        # Crea il cerchietto centrale (diametro 6mm) come guida visiva
+        circle_edge = Part.makeCircle(circle_radius, Base.Vector(cx, cy, z_level))
+        circle_obj = doc.addObject("Part::Feature", f"Cerchio_{row}_{col}")
+        circle_obj.Shape = circle_edge
+        chessboard_group.addObject(circle_obj)
+
+        # Crea il foro fresato al centro (5mm diametro, 3mm profondità)
+        hole_cylinder = Part.makeCylinder(
+            hole_radius,
+            hole_depth,
+            Base.Vector(cx, cy, 0),  # Inizia dalla superficie superiore del MDF
+            Base.Vector(0, 0, 1)
+        )
+        # Aggiungi alla lista di fori
+        chess_holes.append(hole_cylinder)
+
+# Crea il rettangolo di contorno a 1mm di distanza
+frame_margin = 1  # mm
+frame_thickness = 1  # mm
+
+# Calcola le dimensioni del bordo esterno
+inner_x = origin_x - frame_margin
+inner_y = origin_y - frame_margin
+inner_width = cols * square_size + 2 * frame_margin
+inner_height = rows * square_size + 2 * frame_margin
+
+# Crea il rettangolo esterno
+outer_points = [
+    Base.Vector(inner_x - frame_thickness, inner_y - frame_thickness, z_level),
+    Base.Vector(inner_x + inner_width + frame_thickness, inner_y - frame_thickness, z_level),
+    Base.Vector(inner_x + inner_width + frame_thickness, inner_y + inner_height + frame_thickness, z_level),
+    Base.Vector(inner_x - frame_thickness, inner_y + inner_height + frame_thickness, z_level),
+    Base.Vector(inner_x - frame_thickness, inner_y - frame_thickness, z_level)
+]
+outer_wire = Part.makePolygon(outer_points)
+
+# Crea il rettangolo interno
+inner_points = [
+    Base.Vector(inner_x, inner_y, z_level),
+    Base.Vector(inner_x + inner_width, inner_y, z_level),
+    Base.Vector(inner_x + inner_width, inner_y + inner_height, z_level),
+    Base.Vector(inner_x, inner_y + inner_height, z_level),
+    Base.Vector(inner_x, inner_y, z_level)
+]
+inner_wire = Part.makePolygon(inner_points)
+
+# Crea gli oggetti per i bordi
+outer_obj = doc.addObject("Part::Feature", "Bordo_Esterno")
+outer_obj.Shape = outer_wire
+chessboard_group.addObject(outer_obj)
+
+inner_obj = doc.addObject("Part::Feature", "Bordo_Interno")
+inner_obj.Shape = inner_wire
+chessboard_group.addObject(inner_obj)
+
+# Applica tutti i fori al modello MDF
+for chess_hole in chess_holes:
+    final_shape = final_shape.cut(chess_hole)
+
+# Aggiorna l'oggetto MDF con i fori
+obj.Shape = final_shape
+
+# Ricalcola il documento
 doc.recompute()
+
+# Seleziona la vista assometrica
+if App.GuiUp:
+    import FreeCADGui
+    FreeCADGui.ActiveDocument.ActiveView.viewIsometric()
+    FreeCADGui.SendMsgToActiveView("ViewFit")
