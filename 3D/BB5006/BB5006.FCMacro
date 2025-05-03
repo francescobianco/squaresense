@@ -1,0 +1,260 @@
+import FreeCAD as App
+import Part
+import Draft
+from FreeCAD import Base
+
+# Crea un nuovo documento se non è già aperto
+doc = App.ActiveDocument
+if doc is None:
+    doc = App.newDocument("CNC_MDF")
+
+# Parametri del tavolo MDF
+length = 500
+width = 500
+thickness = 6
+
+# Creazione blocco MDF
+mdf_block = Part.makeBox(length, width, thickness)
+
+# Foro passante da 1mm al centro
+hole_radius = 0.5
+center_x = length / 2
+center_y = width / 2
+hole = Part.makeCylinder(hole_radius, thickness, Base.Vector(center_x, center_y, 0), Base.Vector(0, 0, 1))
+final_shape = mdf_block.cut(hole)
+
+# === Parametri scacchiera ===
+square_size = 55  # mm (5.5 cm)
+rows = 8
+cols = 8
+z_level = thickness + 0.1  # appena sopra il piano MDF
+circle_radius = 3  # raggio 3mm = diametro 6mm
+
+# Parametri per i fori LDR
+main_hole_radius = 2.5  # raggio 2.5mm = diametro 5mm per il foro principale
+main_hole_depth = 3     # profondità del foro principale in mm
+pin_hole_radius = 0.5   # raggio 0.5mm = diametro 1mm per i fori dei piedini
+pin_distance = 2.5      # distanza dal centro del foro principale al centro dei fori dei piedini
+pin_depth = thickness   # i fori dei piedini saranno passanti
+
+# Parametri per le scanalature a T
+vert_groove_width = 1    # larghezza scanalatura verticale in mm
+vert_groove_depth = 1    # profondità scanalatura verticale in mm
+vert_groove_length = 40  # lunghezza scanalatura verticale in mm
+
+horiz_groove_width = 2    # larghezza scanalatura orizzontale in mm (testa della T)
+horiz_groove_depth = 2    # profondità scanalatura orizzontale in mm
+horiz_groove_length = 40  # lunghezza scanalatura orizzontale in mm
+
+# Parametri per le scanalature di connessione (griglia)
+conn_groove_width = 1     # larghezza scanalatura di connessione in mm
+conn_groove_depth = 1     # profondità scanalatura di connessione in mm
+
+# Offset per la griglia di connessione (0,0 = al centro delle caselle)
+grid_offset_x = 20        # offset orizzontale in mm per le scanalature verticali
+grid_offset_y = 20        # offset verticale in mm per le scanalature orizzontali
+
+# Calcola il centro della tavola per posizionare la scacchiera
+origin_x = (length - (cols * square_size)) / 2
+origin_y = (width - (rows * square_size)) / 2
+
+# Gruppo per la scacchiera
+chessboard_group = doc.addObject("App::DocumentObjectGroup", "Scacchiera")
+
+# Array per memorizzare i centri dei fori LDR per creare le connessioni a griglia
+ldr_positions = []
+
+# Crea i quadrati della scacchiera e i fori per gli LDR
+for row in range(rows):
+    for col in range(cols):
+        # Calcola la posizione del quadrato
+        x = origin_x + col * square_size
+        y = origin_y + row * square_size
+
+        # Crea il quadrato
+        points = [
+            Base.Vector(x, y, z_level),
+            Base.Vector(x + square_size, y, z_level),
+            Base.Vector(x + square_size, y + square_size, z_level),
+            Base.Vector(x, y + square_size, z_level),
+            Base.Vector(x, y, z_level)
+        ]
+        square_wire = Part.makePolygon(points)
+        square_obj = doc.addObject("Part::Feature", f"Casella_{row}_{col}")
+        square_obj.Shape = square_wire
+        chessboard_group.addObject(square_obj)
+
+        # Calcola il centro della casella
+        cx = x + square_size / 2
+        cy = y + square_size / 2
+
+        # Salva la posizione del centro per le connessioni a griglia
+        ldr_positions.append((cx, cy))
+
+        # Crea il cerchietto centrale (diametro 6mm) come guida visiva
+        circle_edge = Part.makeCircle(circle_radius, Base.Vector(cx, cy, z_level))
+        circle_obj = doc.addObject("Part::Feature", f"Cerchio_{row}_{col}")
+        circle_obj.Shape = circle_edge
+        chessboard_group.addObject(circle_obj)
+
+        # Crea il foro fresato principale al centro (5mm diametro, 3mm profondità)
+        main_hole = Part.makeCylinder(
+            main_hole_radius,
+            main_hole_depth,
+            Base.Vector(cx, cy, 0),  # Inizia dalla superficie superiore del MDF
+            Base.Vector(0, 0, 1)
+        )
+        # Taglia il foro principale direttamente
+        final_shape = final_shape.cut(main_hole)
+
+        # Crea i due fori per i piedini dell'LDR (1mm diametro, passanti)
+        # Foro a nord
+        north_pin_hole = Part.makeCylinder(
+            pin_hole_radius,
+            pin_depth,
+            Base.Vector(cx, cy + pin_distance, 0),
+            Base.Vector(0, 0, 1)
+        )
+        final_shape = final_shape.cut(north_pin_hole)
+
+        # Foro a sud
+        south_pin_hole = Part.makeCylinder(
+            pin_hole_radius,
+            pin_depth,
+            Base.Vector(cx, cy - pin_distance, 0),
+            Base.Vector(0, 0, 1)
+        )
+        final_shape = final_shape.cut(south_pin_hole)
+
+        # Crea la scanalatura verticale della T (parte della gamba)
+        # Centrata sul foro principale, estesa verso il basso
+        # Nota: la scanalatura è posizionata sul LATO INFERIORE dell'MDF
+        vert_groove = Part.makeBox(
+            vert_groove_width,
+            vert_groove_length,
+            vert_groove_depth,
+            Base.Vector(
+                cx - vert_groove_width/2,  # Centrata orizzontalmente sul foro
+                cy - vert_groove_length/2,  # Centrata verticalmente sul foro
+                0  # Inizia dal lato inferiore (z=0) dell'MDF
+            )
+        )
+        final_shape = final_shape.cut(vert_groove)
+
+        # Crea la scanalatura orizzontale della T (parte superiore della T)
+        # La testa della T è in alto come nell'originale
+        horiz_groove = Part.makeBox(
+            horiz_groove_length,
+            horiz_groove_width,
+            horiz_groove_depth,
+            Base.Vector(
+                cx - horiz_groove_length/2,  # Centrata orizzontalmente sul foro
+                cy - horiz_groove_width/2,  # La testa è centrata sul foro come nell'originale
+                0  # Inizia dal lato inferiore (z=0) dell'MDF
+            )
+        )
+        final_shape = final_shape.cut(horiz_groove)
+
+# Crea il rettangolo di contorno a 1mm di distanza
+frame_margin = 1  # mm
+frame_thickness = 1  # mm
+
+# Calcola le dimensioni del bordo esterno
+inner_x = origin_x - frame_margin
+inner_y = origin_y - frame_margin
+inner_width = cols * square_size + 2 * frame_margin
+inner_height = rows * square_size + 2 * frame_margin
+
+# Crea il rettangolo esterno
+outer_points = [
+    Base.Vector(inner_x - frame_thickness, inner_y - frame_thickness, z_level),
+    Base.Vector(inner_x + inner_width + frame_thickness, inner_y - frame_thickness, z_level),
+    Base.Vector(inner_x + inner_width + frame_thickness, inner_y + inner_height + frame_thickness, z_level),
+    Base.Vector(inner_x - frame_thickness, inner_y + inner_height + frame_thickness, z_level),
+    Base.Vector(inner_x - frame_thickness, inner_y - frame_thickness, z_level)
+]
+outer_wire = Part.makePolygon(outer_points)
+
+# Crea il rettangolo interno
+inner_points = [
+    Base.Vector(inner_x, inner_y, z_level),
+    Base.Vector(inner_x + inner_width, inner_y, z_level),
+    Base.Vector(inner_x + inner_width, inner_y + inner_height, z_level),
+    Base.Vector(inner_x, inner_y + inner_height, z_level),
+    Base.Vector(inner_x, inner_y, z_level)
+]
+inner_wire = Part.makePolygon(inner_points)
+
+# Crea gli oggetti per i bordi
+outer_obj = doc.addObject("Part::Feature", "Bordo_Esterno")
+outer_obj.Shape = outer_wire
+chessboard_group.addObject(outer_obj)
+
+inner_obj = doc.addObject("Part::Feature", "Bordo_Interno")
+inner_obj.Shape = inner_wire
+chessboard_group.addObject(inner_obj)
+
+# PARAMETRIZZATO: Crea le scanalature orizzontali di connessione
+# Le scanalature passano dal centro delle caselle quando grid_offset_y = 0
+for row in range(rows):
+    # Per ogni colonna continua in questa riga
+    for col in range(cols-1):
+        # Calcola il centro delle due caselle adiacenti
+        cx1 = origin_x + col * square_size + square_size/2
+        cx2 = origin_x + (col+1) * square_size + square_size/2
+        cy = origin_y + row * square_size + square_size/2
+
+        # Applica l'offset verticale parametrizzato
+        grid_y = cy + grid_offset_y
+
+        # Crea la scanalatura orizzontale con l'offset parametrizzato
+        horiz_conn_groove = Part.makeBox(
+            cx2 - cx1,           # Lunghezza dalla prima casella alla seconda
+            conn_groove_width,   # Larghezza della scanalatura
+            conn_groove_depth,   # Profondità della scanalatura
+            Base.Vector(
+                cx1,             # Inizia dal centro della prima casella
+                grid_y - conn_groove_width/2,  # Centrata verticalmente con offset
+                0                # Sul lato inferiore
+            )
+        )
+        final_shape = final_shape.cut(horiz_conn_groove)
+
+# PARAMETRIZZATO: Crea le scanalature verticali di connessione
+# Le scanalature passano dal centro delle caselle quando grid_offset_x = 0
+for col in range(cols):
+    # Per ogni riga continua in questa colonna
+    for row in range(rows-1):
+        # Calcola il centro delle due caselle adiacenti
+        cx = origin_x + col * square_size + square_size/2
+        cy1 = origin_y + row * square_size + square_size/2
+        cy2 = origin_y + (row+1) * square_size + square_size/2
+
+        # Applica l'offset orizzontale parametrizzato
+        grid_x = cx + grid_offset_x
+
+        # Crea la scanalatura verticale con l'offset parametrizzato
+        vert_conn_groove = Part.makeBox(
+            conn_groove_width,   # Larghezza della scanalatura
+            cy2 - cy1,           # Lunghezza dalla prima casella alla seconda
+            conn_groove_depth,   # Profondità della scanalatura
+            Base.Vector(
+                grid_x - conn_groove_width/2,  # Centrata orizzontalmente con offset
+                cy1,             # Inizia dal centro della prima casella
+                0                # Sul lato inferiore
+            )
+        )
+        final_shape = final_shape.cut(vert_conn_groove)
+
+# Aggiungi al documento l'oggetto MDF finale con tutti i fori
+obj = doc.addObject("Part::Feature", "MDF_Model")
+obj.Shape = final_shape
+
+# Ricalcola il documento
+doc.recompute()
+
+# Seleziona la vista assometrica
+if App.GuiUp:
+    import FreeCADGui
+    FreeCADGui.ActiveDocument.ActiveView.viewIsometric()
+    FreeCADGui.SendMsgToActiveView("ViewFit")
